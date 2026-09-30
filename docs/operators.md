@@ -1,11 +1,13 @@
 # DotDash Operators
 
 **Version:** v0.x
-**Status:** Official
+**Status:** Proposed
 
-This document defines the official operators currently included in DotDash.
+This document defines the proposed operators currently included in DotDash.
 
 The operator system is part of the DotDash language syntax. Each operator has a specific meaning and behavior.
+
+The operators in this document are **proposed** and are not yet part of the official DotDash specification.
 
 ---
 
@@ -251,7 +253,7 @@ NOT.
 
 ---
 
-## Operator Pattern
+## 8. Operator Pattern
 
 DotDash uses reversed dot-and-dash patterns for some counterpart or related operators.
 
@@ -260,24 +262,26 @@ To create the related pattern, each `.` is swapped with `-`, and each `-` is swa
 For example:
 
 ```text
-.-  →  -.
+.- → -.
 ```
 
 and:
 
 ```text
-..-  →  --.
+..- → --.
 ```
 
 This keeps related operators connected by a simple and consistent pattern instead of giving every operator a completely unrelated symbol.
 
+The pattern system is a design principle rather than a requirement that every operator must have a reversed counterpart.
+
 ---
 
-## Status
+## 9. Status
 
-All operators documented in this file are **Official** for the current DotDash v0.x specification.
+All operators documented in this file are **Proposed** for the current DotDash v0.x specification.
 
-The operator system may be extended as DotDash develops.
+The operator system may be extended or modified as DotDash develops.
 
 New operators must be evaluated for:
 
@@ -287,4 +291,6 @@ New operators must be evaluated for:
 * Extensibility
 * Implementation feasibility
 
-Existing official operators should not be changed without an explicit language-design decision.
+Existing proposed operators should not be changed without an explicit language-design decision.
+
+Once the operator system has been sufficiently tested and reviewed, individual operators or the complete operator system may be promoted to **Official**.

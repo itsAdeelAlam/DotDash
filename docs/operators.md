@@ -1,6 +1,7 @@
 # DotDash Operators
 
 **Version:** v0.x
+<br>
 **Status:** Proposed
 
 This document defines the proposed operators currently included in DotDash.

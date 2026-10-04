@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 <br>
-**Version:** 0.1.0
+**Version:** v0.x
 
 This document defines the proposed keyword system for the DotDash programming language.
 
@@ -111,11 +111,11 @@ Conceptual structure:
 
 ```text
 .-.. condition
-    ...
+    -- some code
 .--. condition
-    ...
+    -- some code
 .---
-    ...
+    -- some code
 ```
 
 Normal programming equivalent:
@@ -160,15 +160,15 @@ The exact block syntax is not yet finalized.
 | Keyword    | Symbol | Purpose                                         |
 | ---------- | ------ | ----------------------------------------------- |
 | `while`    | `-.--` | Repeats a block while a condition is true       |
-| `break`    | `-..-` | Exits the current loop                          |
-| `continue` | `-...` | Skips to the next iteration of the current loop |
+| `continue` | `-..-` | Skips to the next iteration of the current loop |
+| `break`    | `-...` | Exits the current loop                          |
 
 `break` and `continue` are valid only within a loop.
 
 Conceptual example:
 
 ```text
--.-- x ..-- 10
+-.-- x --.. 10
     ---... x
     x .. x .- 1
 ```
@@ -185,7 +185,7 @@ Example using `break`:
 
 ```text
 -.-- .
-    -..-
+    -...
 ```
 
 Normal programming equivalent:
@@ -199,7 +199,7 @@ Example using `continue`:
 
 ```text
 -.-- .
-    -...
+    -..-
 ```
 
 Normal programming equivalent:
@@ -266,8 +266,8 @@ The exact syntax and behavior of these operations are not yet finalized.
 | Condition | `elif`     | `.--.`         |
 | Condition | `else`     | `.---`         |
 | Loop      | `while`    | `-.--`         |
-| Loop      | `break`    | `-..-`         |
-| Loop      | `continue` | `-...`         |
+| Loop      | `continue` | `-..-`         |
+| Loop      | `break`    | `-...`         |
 | I/O       | `input`    | `...---`       |
 | I/O       | `output`   | `---...`       |
 

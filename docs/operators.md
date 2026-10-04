@@ -153,10 +153,10 @@ Power.
 | ------ | --------------------- | -------- |
 | `...`  | Equal                 | 2        |
 | `---`  | Not equal             | 2        |
-| `..--` | Less than             | 2        |
-| `--..` | Greater than          | 2        |
-| `.-.-` | Less than or equal    | 2        |
-| `-.-.` | Greater than or equal | 2        |
+| `--..` | Less than             | 2        |
+| `..--` | Greater than          | 2        |
+| `-.-.` | Less than or equal    | 2        |
+| `.-.-` | Greater than or equal | 2        |
 
 Examples:
 
@@ -173,25 +173,25 @@ Equal.
 Not equal.
 
 ```text
-3 ..-- 5
+3 --.. 5
 ```
 
 Less than.
 
 ```text
-5 --.. 3
+5 ..-- 3
 ```
 
 Greater than.
 
 ```text
-5 .-.- 5
+5 -.-. 5
 ```
 
 Less than or equal.
 
 ```text
-5 -.-. 3
+5 .-.- 3
 ```
 
 Greater than or equal.
@@ -204,27 +204,24 @@ Greater than or equal.
 | ------ | ------- | -------- |
 | `....` | AND     | 2        |
 | `----` | OR      | 2        |
-| `.-.`  | NOT     | 1        |
+| `-.-`  | NOT     | 1        |
 
 Examples:
 
 ```text
 . .... .
 ```
-
-AND.
+equals: `true AND true`
 
 ```text
 . ---- -
 ```
-
-OR.
+equals: `true OR false`
 
 ```text
-.-.
+-.- .
 ```
-
-NOT.
+equals: `NOT true`
 
 ---
 
@@ -244,13 +241,13 @@ NOT.
 | `-..`  | Power                 | 2        |
 | `...`  | Equal                 | 2        |
 | `---`  | Not equal             | 2        |
-| `..--` | Less than             | 2        |
-| `--..` | Greater than          | 2        |
-| `.-.-` | Less than or equal    | 2        |
-| `-.-.` | Greater than or equal | 2        |
+| `--..` | Less than             | 2        |
+| `..--` | Greater than          | 2        |
+| `-.-.` | Less than or equal    | 2        |
+| `.-.-` | Greater than or equal | 2        |
 | `....` | AND                   | 2        |
 | `----` | OR                    | 2        |
-| `.-.`  | NOT                   | 1        |
+| `-.-`  | NOT                   | 1        |
 
 ---
 

@@ -4,7 +4,7 @@ DotDash is an experimental programming language built around **dot (`.`) and das
 
 The goal of DotDash is to create a real programming language with its own syntax, grammar, operators, values, and execution model.
 
-DotDash is inspired by the simple visual idea of dots and dashes, but it is **not intended to be a replacement for Morse code**. Its symbols have meanings defined by the DotDash language itself.
+DotDash is inspired by the simple visual idea of dots and dashes in Morse Code, but it is **not intended to be a replacement for Morse code**. Its symbols have meanings defined by the DotDash language itself.
 
 The planned file extension for DotDash programs is:
 
@@ -164,8 +164,10 @@ The goal is to stabilize the foundations before adding complex features.
 
 A simple DotDash program might eventually look something like:
 
-```text
-...
+```DotDash
+-- This is a comment.
+
+x .. 5 .- 6       -- x = 5 + 6
 ```
 
 The exact program syntax is still being developed.

@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 <br>
-**Version:** 0.1.0
+**Version:** v0.x
 
 This document defines the proposed syntax structure of the DotDash programming language.
 
@@ -413,7 +413,7 @@ sum .. x .- y
 difference .. y -. x
 
 is_equal .. x ... y
-is_smaller .. x ..-- y
+is_smaller .. x --.. y
 ```
 
 This example demonstrates:
@@ -504,4 +504,4 @@ These features should be developed incrementally rather than added all at once.
 ---
 
 **Status:** Proposed
-**Version:** 0.1.0
+**Version:** v0.x

@@ -1,7 +1,9 @@
 # DotDash License v1.0.0
 
 **License Identifier:** DDL-1.0.0
+<br>
 **Based on:** MIT License
+<br>
 **Copyright:** © 2026 Adeel Alam
 
 ## 1. Permission

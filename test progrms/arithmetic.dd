@@ -1,0 +1,8 @@
+-...- sum .. 10 .- 5
+-...- difference .. 10 -. 5
+-...- product .. 10 ..- 5
+-...- quotient .. 10 --. 5
+---... sum
+---... difference
+---... product
+---... quotient

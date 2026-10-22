@@ -5,53 +5,76 @@
 
 namespace dotdash {
 
-// Represents every token category recognized by the lexer.
+// Identifies the category of a token recognized by the DotDash lexer.
 enum class TokenType {
-    EndOfFile,       // End of the source code.
-    Invalid,         // Unrecognized or invalid token.
+    // Special tokens
+    EndOfFile,       // Marks the end of the source code.
+    Invalid,         // Represents a token that the lexer cannot recognize.
 
-    IntegerLiteral,  // Integer numeric literal.
-    DoubleLiteral,   // Floating-point numeric literal.
-    StringLiteral,   // String literal.
-    BooleanTrue,     // Boolean true value: .
-    BooleanFalse,    // Boolean false value: -
-    Identifier,      // Variable name or other identifier.
+    // Literal values
+    IntegerLiteral,  // An integer literal, such as 42 or -12.
+    DoubleLiteral,   // A decimal literal, such as 3.14 or 0.5.
+    StringLiteral,   // A quoted string, such as "Hello world".
+    BooleanTrue,     // The standalone DotDash value ".".
+    BooleanFalse,    // The standalone DotDash value "-".
 
-    Plus,            // Addition operator: .-
-    Minus,           // Subtraction operator: -.
-    Multiply,        // Multiplication operator: ..-
-    Divide,          // Division operator: --.
-    Modulo,          // Modulo operator: .--
-    Power,           // Exponentiation operator: -..
+    // Identifiers
+    Identifier,      // A name that is not a recognized keyword.
 
-    Equal,           // Equality operator: ...
-    NotEqual,        // Inequality operator: ---
-    LessThan,        // Less-than operator: ..--
-    GreaterThan,     // Greater-than operator: --..
-    Assignment,      // Assignment operator: ..
+    // Arithmetic operators
+    Plus,            // .-    Addition
+    Minus,           // -.    Subtraction
+    Multiply,        // ..-   Multiplication
+    Divide,          // --.   Division
+    Modulo,          // .--   Modulo (remainder)
+    Power,           // -..   Exponentiation
 
-    Let,             // Mutable variable declaration: -...-
-    Const,           // Constant declaration: .---.
-    If,              // Conditional statement: .-..
-    Elif,            // Additional conditional branch: .--.
-    Else,            // Fallback conditional branch: .---
-    While,           // Loop statement: -.--
-    Break,           // Exit the current loop: -..-
-    Continue,        // Skip to the next loop iteration: -...
-    Input,           // Input operation: ...---
-    Output,          // Output operation: ---...
+    // Comparison operators
+    Equal,           // ...   Equal to
+    NotEqual,        // ---   Not equal to
+    LessThan,        // --..  Less than
+    GreaterThan,     // ..--  Greater than
+    LessThanOrEqual, // -.-.  Less than or equal to
+    GreaterThanOrEqual, // .-.- Greater than or equal to
 
-    Newline,         // Line break in the source code.
-    Indent,          // Increase in indentation level.
-    Dedent           // Decrease in indentation level.
+    // Logical operators
+    LogicalAnd,      // ....  Logical AND
+    LogicalOr,       // ----  Logical OR
+    LogicalNot,      // -.-   Logical NOT
+
+    // Assignment operator
+    Assignment,      // ..    Assigns a value to a variable.
+
+    // Declaration and control-flow keywords
+    Let,             // -...-   Declares a mutable variable.
+    Const,           // .---.   Declares a constant.
+    If,              // .-..    Starts a conditional branch.
+    Elif,            // .--.    Tests another conditional branch.
+    Else,            // .---    Starts the alternative branch.
+    While,           // -.--    Starts a while loop.
+    Break,           // -...    Exits the current loop.
+    Continue,        // -..-    Skips to the next loop iteration.
+
+    // Input/output keywords
+    Input,           // ...---  Requests or reads input.
+    Output,          // ---...  Produces output.
+
+    // Indentation and line structure
+    Newline,         // Marks a line break in the source code.
+    Indent,          // Marks an increase in block indentation.
+    Dedent           // Marks a decrease in block indentation.
 };
 
-// Stores a token and its source location.
+// Stores one token recognized by the lexer.
+//
+// lexeme contains the exact source text associated with the token.
+// line and column identify the token's starting position in the source.
+// Line and column numbers are one-based.
 struct Token {
-    TokenType type;       // Category of the token.
-    std::string lexeme;   // Original text of the token.
-    std::size_t line;     // One-based source line number.
-    std::size_t column;   // One-based source column number.
+    TokenType type = TokenType::Invalid;
+    std::string lexeme;
+    std::size_t line = 1;
+    std::size_t column = 1;
 };
 
 } // namespace dotdash

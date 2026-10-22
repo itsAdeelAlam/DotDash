@@ -136,6 +136,12 @@ namespace dotdash
             if (!isAtEnd() &&
                 !std::isspace(static_cast<unsigned char>(peek())))
             {
+                // write a loop here to consume the rest of the string until the next whitespace or end of line or end of file, and then add an Invalid token for the rest of the string
+                while (!isAtEnd() && !std::isspace(static_cast<unsigned char>(peek())) )
+                {
+                    advance();
+                } 
+
                 addToken(TokenType::Invalid,
                          source.substr(startIndex, current - startIndex));
                 return;

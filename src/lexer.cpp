@@ -136,6 +136,12 @@ namespace dotdash
             if (!isAtEnd() &&
                 !std::isspace(static_cast<unsigned char>(peek())))
             {
+                // write a loop here to consume the rest of the string until the next whitespace, end of line or end of file, and then add an Invalid token for the rest of the string
+                while (!isAtEnd() && !std::isspace(static_cast<unsigned char>(peek())))
+                {
+                    advance();
+                }
+
                 addToken(TokenType::Invalid,
                          source.substr(startIndex, current - startIndex));
                 return;
@@ -388,6 +394,25 @@ namespace dotdash
                 addToken(TokenType::Invalid, lexeme);
             }
         }
+    }
+
+    void Lexer::scanToken()
+    {
+        // Record the starting position of the token.
+        tokenStartLine = line;
+        tokenStartColumn = column;
+
+        // Quoted strings require dedicated scanning because they may
+        // contain whitespace and other characters used as separators.
+        if (peek() == '"')
+        {
+            scanString();
+            return;
+        }
+
+        // Classify a whitespace-delimited token as a literal,
+        // identifier, keyword, or operator.
+        scanWhitespaceDelimitedToken();
     }
 
     void Lexer::handleIndentation()

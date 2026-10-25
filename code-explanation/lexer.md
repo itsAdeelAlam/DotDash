@@ -751,8 +751,14 @@ The current implementation includes this check:
 if (!isAtEnd() &&
     !std::isspace(static_cast<unsigned char>(peek())))
 {
+                
+    while (!isAtEnd() && !std::isspace(static_cast<unsigned char>(peek())))
+    {
+        advance();
+    } 
+
     addToken(TokenType::Invalid,
-             source.substr(startIndex, current - startIndex));
+        source.substr(startIndex, current - startIndex));
     return;
 }
 ```
@@ -770,16 +776,12 @@ For example:
 After consuming `"abc"`, the next character is `d`. It is not whitespace, so the lexer adds:
 
 ```text
-Invalid("\"abc\"")
+Invalid("\"abc\"def")
 ```
 
-The function then returns without consuming `def`.
+The function then returns with out consuming the newline
 
-On the next iteration of the main scanning loop, `def` can be recognized as an identifier.
-
-Therefore, **the current implementation does not combine `"abc"def` into one token**. It marks the string portion invalid and leaves the trailing text for the next scan.
-
-This is an important distinction: the boundary check rejects the quoted portion, but it does not consume the entire malformed sequence as one invalid token.
+On the next iteration of the main scanning loop, newline can be recognized.
 
 ### 11.6 Add a valid string token
 

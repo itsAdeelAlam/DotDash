@@ -1,10 +1,177 @@
 #include "lexer.hpp"
 
-#include <cctype>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 
 namespace dotdash
 {
+    namespace
+    {
+        // ---------------------------------------------------------------
+        // Character helpers
+        //
+        // These are written by hand instead of using <cctype> because:
+        //  - they are locale-independent, so results never change between
+        //    machines,
+        //  - they need no unsigned char casts,
+        //  - they are trivially inlined.
+        // DotDash source is ASCII, so this is sufficient.
+        // ---------------------------------------------------------------
+        constexpr bool isSpace(char c)
+        {
+            return c == ' ' || c == '\t' || c == '\n' ||
+                   c == '\r' || c == '\v' || c == '\f';
+        }
+
+        constexpr bool isDigit(char c)
+        {
+            return c >= '0' && c <= '9';
+        }
+
+        constexpr bool isIdentifierStart(char c)
+
+        {
+            return (c >= 'a' && c <= 'z') ||
+                   (c >= 'A' && c <= 'Z') ||
+                   c == '_';
+        }
+
+        constexpr bool isIdentifierPart(char c)
+        {
+            return isIdentifierStart(c) || isDigit(c);
+        }
+
+        // ---------------------------------------------------------------
+        // Fixed spellings: Boolean literals, operators and keywords.
+        //
+        // A hash lookup replaces the long if / else-if chain. It costs one
+        // hash per token no matter how many spellings exist. The keys are
+        // string_views of string literals, so no allocation happens when
+        // looking a lexeme up.
+        // ---------------------------------------------------------------
+        const std::unordered_map<std::string_view, TokenType> &fixedSpellings()
+        {
+            static const std::unordered_map<std::string_view, TokenType> table = {
+                // Boolean literals.
+                {".", TokenType::BooleanTrue},
+                {"-", TokenType::BooleanFalse},
+
+                // Assignment and arithmetic operators.
+                {"..", TokenType::Assignment},
+                {".-", TokenType::Plus},
+                {"-.", TokenType::Minus},
+                {"..-", TokenType::Multiply},
+                {"--.", TokenType::Divide},
+
+                {".--", TokenType::Modulo},
+                {"-..", TokenType::Power},
+
+                // Comparison operators.
+                {"...", TokenType::Equal},
+                {"---", TokenType::NotEqual},
+                {"--..", TokenType::LessThan},
+                {"..--", TokenType::GreaterThan},
+                {"-.-.", TokenType::LessThanOrEqual},
+                {".-.-", TokenType::GreaterThanOrEqual},
+
+                // Logical operators.
+                {"....", TokenType::LogicalAnd},
+                {"----", TokenType::LogicalOr},
+                {"-.-", TokenType::LogicalNot},
+
+                // Keywords.
+                {"-...-", TokenType::Let},
+                {".---.", TokenType::Const},
+                {".-..", TokenType::If},
+                {".--.", TokenType::Elif},
+                {".---", TokenType::Else},
+                {"-.--", TokenType::While},
+                {"-...", TokenType::Break},
+                {"-..-", TokenType::Continue},
+                {"...---", TokenType::Input},
+                {"---...", TokenType::Output},
+            };
+
+            return table;
+        }
+
+        // Classifies a lexeme that is not a fixed spelling. Returns one of
+        // IntegerLiteral, DoubleLiteral, Identifier or Invalid.
+        //
+        // Looking at the first character is enough to decide which rule
+        // can apply, because the rules cannot overlap:
+        //   digit or '-'            -> must be a number
+        //   letter or '_'           -> must be an identifier
+        //   anything else           -> invalid
+        TokenType classifyOperand(std::string_view lexeme)
+        {
+            const char first = lexeme.front();
+
+            // Number: optional leading '-', digits, and at most one decimal
+            // point that has a digit on each side ("1.5" is valid, "1." and
+            // ".5" are not).
+            if (isDigit(first) || first == '-')
+            {
+                const std::size_t digitStart = (first == '-') ? 1 : 0;
+
+                // A lone "-" is a Boolean and was handled before we got here,
+                // but guard anyway so lexeme[digitStart] is always valid.
+                if (digitStart == lexeme.size())
+                {
+                    return TokenType::Invalid;
+                }
+
+                bool hasDecimalPoint = false;
+
+                for (std::size_t i = digitStart; i < lexeme.size(); ++i)
+                {
+                    const char c = lexeme[i];
+
+                    if (isDigit(c))
+                    {
+                        continue;
+                    }
+
+                    const bool validDecimalPoint =
+                        c == '.' &&
+                        !hasDecimalPoint &&
+                        i > digitStart &&
+                        i + 1 < lexeme.size() &&
+                        isDigit(lexeme[i + 1]);
+
+                    if (!validDecimalPoint)
+                    {
+                        return TokenType::Invalid;
+                    }
+
+                    hasDecimalPoint = true;
+                }
+
+                return hasDecimalPoint ? TokenType::DoubleLiteral
+                                       : TokenType::IntegerLiteral;
+            }
+
+            // Identifier: starts with a letter or '_', followed by letters,
+            // digits or '_'.
+            if (isIdentifierStart(first))
+            {
+                for (std::size_t i = 1; i < lexeme.size(); ++i)
+                {
+                    if (!isIdentifierPart(lexeme[i]))
+                    {
+
+                        return TokenType::Invalid;
+                    }
+                }
+
+                return TokenType::Identifier;
+            }
+
+            return TokenType::Invalid;
+        }
+
+    } // namespace
 
     // Stores the source code and prepares the lexer.
     Lexer::Lexer(const std::string &source)
@@ -18,29 +185,23 @@ namespace dotdash
         return current >= source.size();
     }
 
-    // Returns the current character without advancing the position.
+    // Returns the current character without advancing, or '\0' at the end.
     char Lexer::peek() const
     {
-        if (isAtEnd())
-        {
-            return '\0';
-        }
-
-        return source[current];
+        return isAtEnd() ? '\0' : source[current];
     }
 
-    // Returns the character immediately after the current character.
+    // Returns the character after the current one, or '\0' past the end.
     char Lexer::peekNext() const
-    {
-        if (current + 1 >= source.size())
-        {
-            return '\0';
-        }
 
-        return source[current + 1];
+    {
+        return (current + 1 < source.size()) ? source[current + 1] : '\0';
     }
 
-    // Reads the current character and advances the source position.
+    // Reads the current character and advances, keeping line and column
+    // up to date. Use this for single characters that may be a newline.
+    // Code that skips a run known to contain no newline updates
+    // current/column directly instead, which is faster.
     char Lexer::advance()
     {
         if (isAtEnd())
@@ -48,7 +209,7 @@ namespace dotdash
             return '\0';
         }
 
-        char character = source[current++];
+        const char character = source[current++];
 
         if (character == '\n')
         {
@@ -65,9 +226,10 @@ namespace dotdash
     }
 
     // Consumes the current character only when it matches expected.
+
     bool Lexer::match(char expected)
     {
-        if (isAtEnd() || peek() != expected)
+        if (isAtEnd() || source[current] != expected)
         {
             return false;
         }
@@ -76,7 +238,8 @@ namespace dotdash
         return true;
     }
 
-    // Adds a token with its original text and starting source location.
+    // Adds a token with its original text and the starting location that
+    // was recorded in tokenStartLine / tokenStartColumn.
     void Lexer::addToken(
         TokenType type,
         const std::string &lexeme)
@@ -87,334 +250,157 @@ namespace dotdash
                           tokenStartColumn});
     }
 
-    // Checks whether the source code at the current position begins
-    // with the DotDash comment marker "--".
-    // Returns true if the marker is found; otherwise, returns false.
+    // Returns true when the current position starts a comment.
+    //
+    // A comment is "--" followed by whitespace or the end of the file.
+    // The extra condition is what separates a comment from operators such
+    // as "--." (divide) and "---" (not equal).
     bool Lexer::isCommentStart() const
     {
-        if (source.compare(current, 2, "--") != 0)
+        if (peek() != '-' || peekNext() != '-')
         {
+
             return false;
         }
 
-        const std::size_t next = current + 2;
+        const std::size_t afterMarker = current + 2;
 
-        return next >= source.size() ||
-               std::isspace(
-                   static_cast<unsigned char>(source[next]));
+        return afterMarker >= source.size() ||
+               isSpace(source[afterMarker]);
     }
 
-    // Skips the remainder of the current line.
-    // The newline is left for the normal scanner to process.
+    // Skips the rest of the current line.
+    // The newline itself is left for tokenize() so it can emit a Newline.
     void Lexer::skipComment()
     {
-        while (!isAtEnd() && peek() != '\n')
+        // A line never contains '\n', so only current and column change.
+        const std::size_t start = current;
+        std::size_t end = current;
+
+        while (end < source.size() && source[end] != '\n')
         {
-            advance();
+            ++end;
         }
+
+        column += end - start;
+        current = end;
     }
 
     // Reads a quoted string.
     //
     // A string begins with " and ends at the next ".
-    // Spaces inside the string are preserved.
-    // Escape sequences and multiline strings are not supported.
+    // Spaces inside are preserved. Escapes and multiline strings are not
+    // supported, so a newline or the end of the file ends an unterminated
+    // string.
+
+    //
+    // Result:
+    //   "text"       -> StringLiteral
+    //   "text        -> Invalid (unterminated)
+    //   "text"abc    -> Invalid (text glued to the closing quote; the whole
+    //                   run up to the next whitespace is one Invalid token)
     void Lexer::scanString()
     {
-        const std::size_t startIndex = current;
+        const std::size_t start = current;
+        const std::size_t size = source.size();
 
-        // Consume the opening quotation mark.
-        advance();
+        // Skip the opening quote, then look for the closing one.
+        std::size_t end = start + 1;
 
-        while (!isAtEnd() && peek() != '"' && peek() != '\n')
+        while (end < size && source[end] != '"' && source[end] != '\n')
         {
-            advance();
+            ++end;
         }
 
-        if (match('"'))
+        TokenType type = TokenType::Invalid;
+
+        if (end < size && source[end] == '"')
         {
-            if (!isAtEnd() &&
-                !std::isspace(static_cast<unsigned char>(peek())))
+            ++end; // Consume the closing quote.
+            type = TokenType::StringLiteral;
+
+            // A string must be followed by whitespace or the end of the
+            // file. Anything else makes the whole run invalid.
+            if (end < size && !isSpace(source[end]))
             {
-                // write a loop here to consume the rest of the string until the next whitespace, end of line or end of file, and then add an Invalid token for the rest of the string
-                while (!isAtEnd() && !std::isspace(static_cast<unsigned char>(peek())))
+                type = TokenType::Invalid;
+
+                while (end < size && !isSpace(source[end]))
                 {
-                    advance();
+                    ++end;
                 }
-
-                addToken(TokenType::Invalid,
-                         source.substr(startIndex, current - startIndex));
-                return;
             }
-
-            addToken(
-                TokenType::StringLiteral,
-                source.substr(startIndex, current - startIndex));
-            return;
         }
 
-        addToken(
-            TokenType::Invalid,
-            source.substr(startIndex, current - startIndex));
+        // The scanned range never contains a newline (the loops above stop
+        // at '\n'), so the position can be updated in one step.
+        column += end - start;
+        current = end;
+
+        addToken(type, source.substr(start, end - start));
     }
 
-    // Reads one whitespace-delimited token and determines its type.
+    // Reads one whitespace-delimited word and determines its type.
     //
-    // This routine handles complete tokens such as identifiers, numbers,
-    // Boolean values, operators, and keywords. Strings are handled by
-    // scanString() because they may contain spaces.
+    // Precondition: the current character is not whitespace (tokenize()
+    // guarantees this), so the word is never empty.
+    //
+    // Handles Boolean literals, operators, keywords, numbers and
+    // identifiers. Strings are handled by scanString() because they may
+    // contain spaces.
     void Lexer::scanWhitespaceDelimitedToken()
     {
-        const std::size_t startIndex = current;
+        const std::size_t start = current;
+        std::size_t end = start;
 
-        while (!isAtEnd() &&
-               !std::isspace(
-                   static_cast<unsigned char>(peek())))
+        while (end < source.size() && !isSpace(source[end]))
         {
-            advance();
+            ++end;
         }
 
-        const std::string lexeme =
-            source.substr(startIndex, current - startIndex);
+        // The word contains no whitespace, so no newline either.
+        column += end - start;
+        current = end;
 
-        if (lexeme.empty())
+        const std::string lexeme = source.substr(start, end - start);
+
+        // 1. Exact spellings (Booleans, operators, keywords).
+        const auto &table = fixedSpellings();
+        const auto found = table.find(lexeme);
+
+        if (found != table.end())
         {
-            advance();
+            addToken(found->second, lexeme);
             return;
         }
 
-        // Boolean literals.
-        if (lexeme == ".")
-        {
-            addToken(TokenType::BooleanTrue, lexeme);
-            return;
-        }
-
-        if (lexeme == "-")
-        {
-            addToken(TokenType::BooleanFalse, lexeme);
-            return;
-        }
-
-        // DotDash operators and keywords.
-        // Each spelling follows the current Operators and Keywords documents.
-        if (lexeme == "..")
-        {
-            addToken(TokenType::Assignment, lexeme);
-        }
-        else if (lexeme == ".-")
-        {
-            addToken(TokenType::Plus, lexeme);
-        }
-        else if (lexeme == "-.")
-        {
-            addToken(TokenType::Minus, lexeme);
-        }
-        else if (lexeme == "..-")
-        {
-            addToken(TokenType::Multiply, lexeme);
-        }
-        else if (lexeme == "--.")
-        {
-            addToken(TokenType::Divide, lexeme);
-        }
-        else if (lexeme == ".--")
-        {
-            addToken(TokenType::Modulo, lexeme);
-        }
-        else if (lexeme == "-..")
-        {
-            addToken(TokenType::Power, lexeme);
-        }
-        else if (lexeme == "...")
-        {
-            addToken(TokenType::Equal, lexeme);
-        }
-        else if (lexeme == "---")
-        {
-            addToken(TokenType::NotEqual, lexeme);
-        }
-        else if (lexeme == "--..")
-        {
-            addToken(TokenType::LessThan, lexeme);
-        }
-        else if (lexeme == "..--")
-        {
-            addToken(TokenType::GreaterThan, lexeme);
-        }
-        else if (lexeme == "-.-.")
-        {
-            addToken(TokenType::LessThanOrEqual, lexeme);
-        }
-        else if (lexeme == ".-.-")
-        {
-            addToken(TokenType::GreaterThanOrEqual, lexeme);
-        }
-        else if (lexeme == "....")
-        {
-            addToken(TokenType::LogicalAnd, lexeme);
-        }
-        else if (lexeme == "----")
-        {
-            addToken(TokenType::LogicalOr, lexeme);
-        }
-        else if (lexeme == "-.-")
-        {
-            addToken(TokenType::LogicalNot, lexeme);
-        }
-        else if (lexeme == "-...-")
-        {
-            addToken(TokenType::Let, lexeme);
-        }
-        else if (lexeme == ".---.")
-        {
-            addToken(TokenType::Const, lexeme);
-        }
-        else if (lexeme == ".-..")
-        {
-            addToken(TokenType::If, lexeme);
-        }
-        else if (lexeme == ".--.")
-        {
-            addToken(TokenType::Elif, lexeme);
-        }
-        else if (lexeme == ".---")
-        {
-            addToken(TokenType::Else, lexeme);
-        }
-        else if (lexeme == "-.--")
-        {
-            addToken(TokenType::While, lexeme);
-        }
-        else if (lexeme == "-...")
-        {
-            addToken(TokenType::Break, lexeme);
-        }
-        else if (lexeme == "-..-")
-        {
-            addToken(TokenType::Continue, lexeme);
-        }
-        else if (lexeme == "...---")
-        {
-            addToken(TokenType::Input, lexeme);
-        }
-        else if (lexeme == "---...")
-        {
-            addToken(TokenType::Output, lexeme);
-        }
-        else
-        {
-            // Determine whether the token is a number.
-            // A decimal point is permitted once, between digits.
-            bool isNumber = !lexeme.empty();
-            bool hasDecimalPoint = false;
-            std::size_t digitStart = 0;
-
-            // A leading minus is accepted as part of a negative number.
-            if (lexeme[0] == '-')
-            {
-                digitStart = 1;
-            }
-
-            if (digitStart == lexeme.size())
-            {
-                isNumber = false;
-            }
-
-            for (std::size_t i = digitStart;
-                 i < lexeme.size();
-                 ++i)
-            {
-                const char character = lexeme[i];
-
-                if (std::isdigit(
-                        static_cast<unsigned char>(character)))
-                {
-                    continue;
-                }
-
-                if (character == '.' &&
-                    !hasDecimalPoint &&
-                    i > digitStart &&
-                    i + 1 < lexeme.size() &&
-                    std::isdigit(
-                        static_cast<unsigned char>(lexeme[i + 1])))
-                {
-                    hasDecimalPoint = true;
-                    continue;
-                }
-
-                isNumber = false;
-                break;
-            }
-
-            if (isNumber)
-            {
-                addToken(
-                    hasDecimalPoint
-                        ? TokenType::DoubleLiteral
-                        : TokenType::IntegerLiteral,
-                    lexeme);
-                return;
-            }
-
-            // Identifiers start with a letter or underscore.
-            // Remaining characters may be letters, digits, or underscores.
-            bool isIdentifier = !lexeme.empty();
-
-            if (isIdentifier)
-            {
-                const unsigned char first =
-                    static_cast<unsigned char>(lexeme[0]);
-
-                isIdentifier =
-                    std::isalpha(first) || lexeme[0] == '_';
-            }
-
-            for (std::size_t i = 1;
-                 isIdentifier && i < lexeme.size();
-                 ++i)
-            {
-                const unsigned char character =
-                    static_cast<unsigned char>(lexeme[i]);
-
-                if (!std::isalnum(character) &&
-                    lexeme[i] != '_')
-                {
-                    isIdentifier = false;
-                }
-            }
-
-            if (isIdentifier)
-            {
-                addToken(TokenType::Identifier, lexeme);
-            }
-            else
-            {
-                addToken(TokenType::Invalid, lexeme);
-            }
-        }
+        // 2. Number, identifier or invalid.
+        addToken(classifyOperand(lexeme), lexeme);
     }
 
+    // Starts a new token: records where it begins, then dispatches on the
+    // first character.
     void Lexer::scanToken()
     {
-        // Record the starting position of the token.
         tokenStartLine = line;
         tokenStartColumn = column;
 
-        // Quoted strings require dedicated scanning because they may
-        // contain whitespace and other characters used as separators.
         if (peek() == '"')
         {
             scanString();
-            return;
         }
 
-        // Classify a whitespace-delimited token as a literal,
-        // identifier, keyword, or operator.
-        scanWhitespaceDelimitedToken();
+        else
+        {
+            scanWhitespaceDelimitedToken();
+        }
     }
 
+    // Converts the leading whitespace of a line into Indent / Dedent tokens.
+    //
+    // Called at the start of every line. Blank lines and comment-only lines
+    // are ignored so they cannot affect block structure. Tabs advance to
+    // the next multiple of four columns.
     void Lexer::handleIndentation()
     {
         if (!atLineStart)
@@ -422,125 +408,139 @@ namespace dotdash
             return;
         }
 
+        // Measure the leading spaces and tabs. No newline can occur here,
+        // so position is updated once at the end.
         const std::size_t indentationStart = current;
         std::size_t indentationWidth = 0;
+        std::size_t end = current;
 
-        // Measure the indentation at the beginning of the line.
-        while (!isAtEnd() &&
-               (peek() == ' ' || peek() == '\t'))
+        while (end < source.size() &&
+               (source[end] == ' ' || source[end] == '\t'))
         {
-            if (peek() == '\t')
-            {
-                // Advance tabs to the next multiple of four columns.
-                indentationWidth =
-                    ((indentationWidth / 4) + 1) * 4;
-            }
-            else
-            {
-                ++indentationWidth;
-            }
-
-            advance();
+            indentationWidth = (source[end] == '\t')
+                                   ? ((indentationWidth / 4) + 1) * 4
+                                   : indentationWidth + 1;
+            ++end;
         }
 
-        // Blank lines do not change the indentation stack.
-        if (isAtEnd() || peek() == '\n' || peek() == '\r')
-        {
-            return;
-        }
+        column += end - indentationStart;
+        current = end;
 
-        // Comment-only lines do not change the indentation stack.
-        if (isCommentStart())
+        // Blank and comment-only lines leave atLineStart set, so the next
+        // line is checked again.
+        if (isAtEnd() ||
+            peek() == '\n' ||
+            peek() == '\r' ||
+            isCommentStart())
         {
             return;
         }
 
         atLineStart = false;
 
-        const std::size_t currentIndentation =
-            indentationStack.back();
+        // Indent and Dedent tokens are reported at column 1 of their line.
+        tokenStartLine = line;
+        tokenStartColumn = 1;
 
-        // A greater indentation opens a new block.
-        if (indentationWidth > currentIndentation)
+        const std::string indentText =
+            source.substr(indentationStart, current - indentationStart);
+
+        // Deeper than before: open one block.
+        if (indentationWidth > indentationStack.back())
         {
             indentationStack.push_back(indentationWidth);
-
-            tokenStartLine = line;
-            tokenStartColumn = 1;
-
-            addToken(
-                TokenType::Indent,
-                source.substr(
-                    indentationStart,
-                    current - indentationStart));
-
+            addToken(TokenType::Indent, indentText);
             return;
         }
 
-        // A smaller indentation closes one or more blocks.
-        if (indentationWidth < currentIndentation)
+        // Shallower than before: close blocks until the width matches.
+
+        while (indentationStack.size() > 1 &&
+               indentationWidth < indentationStack.back())
         {
-            while (indentationStack.size() > 1 &&
-                   indentationWidth < indentationStack.back())
-            {
-                indentationStack.pop_back();
+            indentationStack.pop_back();
+            addToken(TokenType::Dedent, indentText);
+        }
 
-                tokenStartLine = line;
-                tokenStartColumn = 1;
-
-                addToken(
-                    TokenType::Dedent,
-                    source.substr(
-                        indentationStart,
-                        current - indentationStart));
-            }
-
-            // The indentation must match an existing level.
-            if (indentationWidth != indentationStack.back())
-            {
-                tokenStartLine = line;
-                tokenStartColumn = 1;
-
-                addToken(
-                    TokenType::Invalid,
-                    "<invalid indentation>");
-
-                // Recover using the new width without adding a stack level.
-                indentationStack.back() = indentationWidth;
-            }
+        // If the width does not match any open level (for example 4, 8,
+        // then 6), report it and carry on with the new width so a single
+        // mistake does not produce an error on every following line.
+        if (indentationWidth != indentationStack.back())
+        {
+            addToken(TokenType::Invalid, "<invalid indentation>");
+            indentationStack.back() = indentationWidth;
         }
     }
 
     // Tokenizes the complete source code.
     //
-    // The lexer can be called more than once on the same instance.
-    // Each call starts from the beginning and returns a fresh token sequence.
+    // Can be called repeatedly on the same instance. Each call starts from
+    // the beginning and returns a fresh token sequence.
+    //
+    // Token stream shape (similar to Python):
+    //   statement NEWLINE
+    //   INDENT statement NEWLINE
+    //   DEDENT statement NEWLINE
+    //   ... EndOfFile
     std::vector<Token> Lexer::tokenize()
     {
+        // Reset all state.
         current = 0;
         line = 1;
+
         column = 1;
         tokenStartLine = 1;
         tokenStartColumn = 1;
         atLineStart = true;
-        indentationStack.clear();
-        indentationStack.push_back(0);
+        indentationStack.assign(1, 0);
         tokens.clear();
+
+        // Rough guess (about one token per 4 characters) to avoid repeated
+        // reallocation while the vector grows.
+        tokens.reserve(source.size() / 4 + 8);
 
         while (!isAtEnd())
         {
-            // Handle indentation before reading the next line's tokens.
+            // Indentation is only meaningful at the start of a line.
             if (atLineStart)
             {
                 handleIndentation();
+
+                if (isAtEnd())
+                {
+                    break;
+                }
             }
 
-            if (isAtEnd())
+            const char c = peek();
+
+            // End of a line. Emit a Newline unless the previous token is
+            // already one, or no token exists yet. This collapses blank
+            // and comment-only lines instead of producing empty statements.
+            if (c == '\n')
             {
-                break;
+                if (!tokens.empty() &&
+
+                    tokens.back().type != TokenType::Newline)
+                {
+                    tokenStartLine = line;
+                    tokenStartColumn = column;
+                    addToken(TokenType::Newline, "\n");
+                }
+
+                advance(); // Also sets atLineStart for the next line.
+                continue;
             }
 
-            // Comments are discarded; their newline remains significant.
+            // Whitespace between tokens (the '\n' case was handled above).
+            if (isSpace(c))
+            {
+                ++current;
+                ++column;
+                continue;
+            }
+
+            // Comments are discarded, but their newline stays significant.
             if (isCommentStart())
             {
                 skipComment();
@@ -550,24 +550,23 @@ namespace dotdash
             scanToken();
         }
 
-        // Add a final newline if the last statement needs one.
+        // Terminate the last statement if the file has no trailing newline.
         if (!tokens.empty() &&
-            tokens.back().type != TokenType::Newline &&
-            tokens.back().type != TokenType::Indent &&
-            tokens.back().type != TokenType::Dedent)
+            tokens.back().type != TokenType::Newline)
+
         {
             tokenStartLine = line;
             tokenStartColumn = column;
             addToken(TokenType::Newline, "\n");
         }
 
-        // Close any remaining indentation blocks.
+        // Close all blocks that are still open at the end of the file.
+        tokenStartLine = line;
+        tokenStartColumn = 1;
+
         while (indentationStack.size() > 1)
         {
             indentationStack.pop_back();
-
-            tokenStartLine = line;
-            tokenStartColumn = 1;
             addToken(TokenType::Dedent, "");
         }
 
@@ -576,7 +575,9 @@ namespace dotdash
         tokenStartColumn = column;
         addToken(TokenType::EndOfFile, "");
 
-        return tokens;
+        // The vector is cleared on the next tokenize() call, so moving it
+        // out is safe and avoids copying every token.
+        return std::move(tokens);
     }
 
 } // namespace dotdash
